@@ -1,0 +1,568 @@
+#include <cstdio>
+#include <iostream>
+
+using namespace std;
+
+const int N = 200010;
+
+int m, p;  // 操作数, 取模的数
+struct Node {
+    int l, r;
+    int v;  // 区间[l, r]中的最大值
+} tr[N * 4];
+
+void pushup(int u) {  // 由子节点的信息，来计算父节点的信息
+    tr[u].v = max(tr[u << 1].v, tr[u << 1 | 1].v);
+}
+
+// 节点tr[u]存储区间[l, r]的信息
+void build(int u, int l, int r) {
+    
+    tr[u] = {l, r};
+    if (l == r) return;
+    int mid = l + r >> 1;
+    build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+    // pushup(u);  // 不需要这句话，因为线段树中所有的v都是0
+}
+
+// 从节点tr[u]开始查询区间[l, r]的最大值
+int query(int u, int l, int r) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) return tr[u].v;  // 树中节点，已经被完全包含在[l, r]中了
+    
+    int mid = tr[u].l + tr[u].r >> 1;
+    int v = 0;
+    if (l <= mid) v = query(u << 1, l, r);
+    if (r > mid) v = max(v, query(u << 1 | 1, l, r));  // 右区间从mid+1开始
+    
+    return v;
+}
+
+// 从节点tr[u]开始修改第x个数为v
+void modify(int u, int x, int v) {
+    
+    if (tr[u].l == x && tr[u].r == x) tr[u].v = v;
+    else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (x <= mid) modify(u << 1, x, v);
+        else modify(u << 1 | 1, x, v);
+        pushup(u);  // 修改子节点，则必须更新父节点
+    }
+}
+
+int main() {
+    
+    int n, last;  // n:插入的数据的个数，last:上次询问的结果
+    scanf("%d%d", &m, &p);
+    
+    // 创建线段树, 根节点是tr[1]
+    build(1, 1, m);
+    
+    char op[2];  // 操作码
+    int x;  // 操作数
+    while (m--) {
+        scanf("%s%d", op, &x);
+        if (*op == 'Q') {
+            // 从根节点1开始查询区间[n-x+1, n]的最大值
+            last = query(1, n - x + 1, n);
+            printf("%d\n", last);
+        } else {
+            // 从根节点1开始修改第n+1个数为(x + last) % p
+            modify(1, n + 1, (x + last) % p);
+            n++;
+        }
+    }
+    
+    return 0;
+}
+
+
+
+#include <iostream>
+
+using namespace std;
+
+const int N = 500010;
+
+int n, m;  // 数列长度、指令条数
+int a[N];  // 输入数组
+struct Node {
+    int l, r;
+    // 区间总和、最大前缀和、最大后缀和、最大连续子段和
+    int sum, lmax, rmax, tmax;
+} tr[N * 4];
+
+// 根据u的左右孩子构造u
+void pushup(Node &u, Node &l, Node &r) {
+    
+    u.sum = l.sum + r.sum;
+    u.lmax = max(l.lmax, l.sum + r.lmax);
+    u.rmax = max(r.rmax, l.rmax + r.sum);
+    u.tmax = max(max(l.tmax, r.tmax), l.rmax + r.lmax);
+}
+
+void pushup(int u) {
+    pushup(tr[u], tr[u << 1], tr[u << 1 | 1]);
+}
+
+void build(int u, int l, int r) {
+    
+    if (l == r) tr[u] = {l, r, a[l], a[l], a[l], a[l]};
+    else {
+        tr[u] = {l, r};
+        int mid = l + r >> 1;
+        build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+        pushup(u);
+    }
+}
+
+// 从节点tr[u]开始修改第a[x]个数为v
+void modify(int u, int x, int v) {
+    
+    if (tr[u].l == tr[u].r) tr[u] = {x, x, v, v, v, v};
+    else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (x <= mid) modify(u << 1, x, v);
+        else modify(u << 1 | 1, x, v);
+        pushup(u);
+    }
+}
+
+// 返回从节点tr[u]开始查询区间a[l, r]的最大连续子段和所在的节点
+Node query(int u, int l, int r) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) return tr[u];
+    else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (r <= mid) return query(u << 1, l, r);
+        else if (l > mid) return query(u << 1 | 1, l, r);
+        else {
+            auto left = query(u << 1, l, r);
+            auto right = query(u << 1 | 1, l, r);
+            Node res;
+            pushup(res, left, right);  // 根据左右孩子求解tmax
+            return res;
+        }
+    }
+}
+
+int main() {
+    
+    scanf("%d%d", &n, &m);
+    for (int i = 1; i <= n; i++) scanf("%d", &a[i]);
+    
+    build(1, 1, n);
+    
+    int k, x, y;
+    while (m--) {
+        scanf("%d%d%d", &k, &x, &y);
+        if (k == 1) {
+            if (x > y) swap(x, y);
+            printf("%d\n", query(1, x, y).tmax);
+        } else {
+            modify(1, x, y);
+        }
+    }
+    
+    return 0;
+}
+
+
+
+#include <iostream>
+
+using namespace std;
+
+typedef long long LL;
+
+const int N = 500010;
+
+int n, m;  // 数组长度、指令数目
+LL a[N];  // a是输入数组, b是a对应的差分数组
+struct Node {
+    int l, r;
+    LL sum;  // sum = b[r] + b[r-1] + ... + b[l]
+    LL d;  // 区间a[l, r]之间数据的最大公约数,等价于b[l, r]之间数据的最大公约数
+} tr[N * 4];
+
+LL gcd(LL a, LL b) {
+    return b ? gcd(b, a % b) : a;
+}
+
+void pushup(Node &u, Node &l, Node &r) {
+    
+    u.sum = l.sum + r.sum;
+    u.d = gcd(l.d, r.d);
+}
+
+void pushup(int u) {
+    pushup(tr[u], tr[u << 1], tr[u << 1 | 1]);
+}
+
+void build(int u, int l, int r) {
+    
+    if (l == r) {
+        LL b = a[r] - a[r - 1];
+        tr[u] = {l, r, b, b};
+    } else {
+        tr[u].l = l, tr[u].r = r;
+        int mid = l + r >> 1;
+        build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+        pushup(u);
+    }
+}
+
+void modify(int u, int x, LL v) {
+    
+    if (tr[u].l == x && tr[u].r == x) {
+        LL b = tr[u].sum + v;
+        tr[u] = {x, x, b, b};
+    } else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (x <= mid) modify(u << 1, x, v);
+        else modify(u << 1 | 1, x, v);
+        pushup(u);
+    }
+}
+
+Node query(int u, int l, int r) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) return tr[u];
+    else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (r <= mid) return query(u << 1, l, r);
+        else if (l > mid) return query(u << 1 | 1, l, r);
+        else {
+            auto left = query(u << 1, l, r);
+            auto right = query(u << 1 | 1, l, r);
+            Node res;
+            pushup(res, left, right);
+            return res;
+        }
+    }
+}
+
+int main() {
+    
+    scanf("%d%d", &n, &m);
+    for (int i = 1; i <= n; i++) scanf("%lld", &a[i]);
+    
+    build(1, 1, n);
+    
+    int l, r;
+    LL d;  // 加上的数
+    char op[2];  // 操作
+    while (m--) {
+        scanf("%s%d%d", op, &l, &r);
+        if (*op == 'Q') {
+            auto left = query(1, 1, l);  // 为了得到a[l]的值，即a[l]=left.sum
+            Node right({0, 0, 0, 0});
+            if (l + 1 <= r) right = query(1, l + 1, r);  // 为了得到a[l+1~r]的最大公约数
+            printf("%lld\n", abs(gcd(left.sum, right.d)));
+        } else {
+            scanf("%lld", &d);
+            modify(1, l, d);
+            if (r + 1 <= n) modify(1, r + 1, -d);
+        }
+    }
+    
+    return 0;
+}
+
+
+
+#include <iostream>
+
+using namespace std;
+
+typedef long long LL;
+
+const int N = 100010;
+
+int n, m;  // 数列长度、操作个数
+int a[N];  // 输入的数组
+struct Node {
+    int l, r;
+    LL sum;  // 如果考虑当前节点及子节点上的所有标记，其区间[l, r]的总和就是sum
+    LL add;  // 懒标记，表示需要给以当前节点为根的子树中的每一个节点都加上add这个数(不包含当前节点)
+} tr[N * 4];
+
+// 由子节点的信息，来计算父节点的信息
+void pushup(int u) {
+    tr[u].sum = tr[u << 1].sum + tr[u << 1 | 1].sum;
+}
+
+// 把当前父节点的修改信息下传到子节点，也被称为懒标记（延迟标记）
+void pushdown(int u) {
+    
+    auto &root = tr[u], &left = tr[u << 1], &right = tr[u << 1 | 1];
+    if (root.add) {
+        left.add += root.add, left.sum += (LL)(left.r - left.l + 1) * root.add;
+        right.add += root.add, right.sum += (LL)(right.r - right.l + 1) * root.add;
+        root.add = 0;
+    }
+}
+
+// 创建线段树
+void build(int u, int l, int r) {
+    
+    if (l == r) tr[u] = {l, r, a[l], 0};
+    else {
+        tr[u] = {l, r};
+        int mid = l + r >> 1;
+        build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+        pushup(u);
+    }
+}
+
+// 将a[l~r]都加上d
+void modify(int u, int l, int r, LL d) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) {
+        tr[u].sum += (LL)(tr[u].r - tr[u].l + 1) * d;
+        tr[u].add += d;
+    } else {  // 一定要分裂
+        pushdown(u);
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (l <= mid) modify(u << 1, l, r, d);
+        if (r > mid) modify(u << 1 | 1, l, r, d);
+        pushup(u);
+    }
+}
+
+// 返回a[l~r]元素之和
+LL query(int u, int l, int r) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) return tr[u].sum;
+    
+    pushdown(u);
+    int mid = tr[u].l + tr[u].r >> 1;
+    LL sum = 0;
+    if (l <= mid) sum += query(u << 1, l, r);
+    if (r > mid) sum += query(u << 1 | 1, l, r);
+    return sum;
+}
+
+int main() {
+    
+    scanf("%d%d", &n, &m);
+    for (int i = 1; i <= n; i++) scanf("%d", &a[i]);
+    
+    build(1, 1, n);
+    
+    char op[2];
+    int l, r, d;
+    while (m--) {
+        scanf("%s%d%d", op, &l, &r);
+        if (*op == 'C') {
+            scanf("%d", &d);
+            modify(1, l, r, d);
+        } else {
+            printf("%lld\n", query(1, l, r));
+        }
+    }
+    
+    return 0;
+}
+
+
+
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+
+using namespace std;
+
+const int N = 100010;
+
+int n;  // 矩形个数
+struct Segment {
+    double x, y1, y2;  // 区间的两个端点为(x, y1), (x, y2)
+    int k;  // k只能取+1或者-1，表示当前区间的操作是+1还是-1
+    bool operator< (const Segment &t) const {
+        return x < t.x;
+    }
+} seg[N * 2];  // 存储区间
+
+struct Node {
+    int l, r;  // 纵坐标对应的离散化的值
+    int cnt;  // 当前区间[l, r]全部都被覆盖的次数
+    // 不考虑祖先节点cnt的前提下，只考虑当前节点及子节点，cnt>0的区间总长度，类似于刚才(aAcwing 243)的sum
+    double len;
+} tr[N * 8];
+
+vector<double> ys;  // 用于离散化纵坐标
+
+int find(double y) {
+    return lower_bound(ys.begin(), ys.end(), y) - ys.begin();
+}
+
+void pushup(int u) {
+    
+    if (tr[u].cnt) {  // 说明节点u对应的区间完全被覆盖
+        // 例如tr[u].l = 3, tr[u].r = 5, 对应上面分析的于a[3],a[4],a[5]三个区间
+        // 对应离散化区间为[3, 4], [4, 5], [5, 6]
+        // 对应上面的[ys[3], ys[4]], [ys[4], ys[5]], [ys[5], ys[6]]
+        // 即[y4, y5], [y5, y6], [y6, y7]
+        tr[u].len = ys[tr[u].r + 1] - ys[tr[u].l];
+    } else if (tr[u].l != tr[u].r) {  // 没有完全被覆盖，且有子区间
+        tr[u].len = tr[u << 1].len + tr[u << 1 | 1].len;
+    } else {  // 没有完全覆盖，且是叶节点
+        tr[u].len = 0;
+    }
+}
+
+void build(int u, int l, int r) {
+    
+    tr[u] = {l, r, 0, 0};
+    if (l != r) {
+        int mid = l + r >> 1;
+        build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+    }
+}
+
+// 从节点u开始将区间[l, r]加上k
+void modify(int u, int l, int r, int k) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) {
+        tr[u].cnt += k;
+        pushup(u);
+    } else {
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (l <= mid) modify(u << 1, l, r , k);
+        if (r > mid) modify(u << 1 | 1, l, r, k);
+        pushup(u);
+    }
+}
+
+int main() {
+    
+    int T = 1;
+    while (scanf("%d", &n), n) {
+        
+        ys.clear();
+        for (int i = 0, j = 0; i < n; i++) {
+            double x1, y1, x2, y2;
+            scanf("%lf%lf%lf%lf", &x1, &y1, &x2, &y2);
+            seg[j++] = {x1, y1, y2, 1};
+            seg[j++] = {x2, y1, y2, -1};
+            ys.push_back(y1), ys.push_back(y2);
+        }
+        
+        // 对纵坐标进行离散化
+        sort(ys.begin(), ys.end());
+        ys.erase(unique(ys.begin(), ys.end()), ys.end());
+        
+        // ys.size()个纵坐标，ys.size()-1个区间，下标是0~ys.size() - 2
+        build(1, 0, ys.size() - 2);
+        // 按照横坐标排序(横坐标当成扫描线)
+        sort(seg, seg + n * 2);
+        
+        double res = 0;
+        for (int i = 0; i < 2 * n; i++) {
+            if (i > 0) res += tr[1].len * (seg[i].x - seg[i - 1].x);
+            modify(1, find(seg[i].y1), find(seg[i].y2) - 1, seg[i].k);
+        }
+        
+        printf("Test case #%d\n", T ++ );
+        printf("Total explored area: %.2lf\n\n", res);
+    }
+    
+    return 0;
+}
+
+
+
+#include <iostream>
+
+using namespace std;
+
+typedef long long LL;
+
+const int N = 100010;
+
+int n, p, m;  // 元素个数，取模的数，操作个数
+int a[N];
+struct Node {
+    int l, r;
+    int sum, add, mul;
+} tr[N * 4];
+
+void pushup(int u) {
+    tr[u].sum = (tr[u << 1].sum + tr[u << 1 | 1].sum) % p;
+}
+
+void build(int u, int l, int r) {
+    
+    if (l == r) tr[u] = {l, r, a[l] % p, 0, 0};
+    else {
+        tr[u] = {l, r, 0, 0, 1};  // sum值会在pushup时被更新
+        int mid = l + r >> 1;
+        build(u << 1, l, mid), build(u << 1 | 1, mid + 1, r);
+        pushup(u);
+    }
+}
+
+// 对节点t进行 (t * mul + add) 的操作
+void eval(Node &t, int add, int mul) {
+    // sum = sum * mul + len * add;(len为区间长度)
+    t.sum = ((LL)t.sum * mul + (LL)(t.r - t.l + 1) * add) % p;
+    t.mul = (LL)t.mul * mul % p;
+    t.add = ((LL)t.add * mul + add) % p;
+}
+
+void pushdown(int u) {
+    eval(tr[u << 1], tr[u].add, tr[u].mul);
+    eval(tr[u << 1 | 1], tr[u].add, tr[u].mul);
+    tr[u].add = 0, tr[u].mul = 1;
+}
+
+void modify(int u, int l, int r, int add, int mul) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) eval(tr[u], add, mul);
+    else {
+        pushdown(u);
+        int mid = tr[u].l + tr[u].r >> 1;
+        if (l <= mid) modify(u << 1, l, r, add, mul);
+        if (r > mid) modify(u << 1 | 1, l, r, add ,mul);
+        pushup(u);
+    }
+}
+
+int query(int u, int l, int r) {
+    
+    if (tr[u].l >= l && tr[u].r <= r) return tr[u].sum;
+    
+    pushdown(u);
+    int mid = tr[u].l + tr[u].r >> 1;
+    int sum = 0;
+    if (l <= mid) sum = query(u << 1, l, r);
+    if (r > mid) sum = (sum + query(u << 1 | 1, l, r)) % p;
+    return sum;
+}
+
+int main() {
+    
+    scanf("%d%d", &n, &p);
+    for (int i = 1; i <= n; i++) scanf("%d", &a[i]);
+    
+    build(1, 1, n);
+    
+    scanf("%d", &m);
+    while (m--) {
+        int t, l, r, d;
+        scanf("%d%d%d", &t, &l, &r);
+        if (t == 1) {
+            scanf("%d", &d);
+            modify(1, l, r, 0, d);  // *d + 0
+        } else if (t == 2) {
+            scanf("%d", &d);
+            modify(1, l, r, d, 1);  // *1 + d
+        } else {
+            printf("%d\n", query(1, l, r));
+        }
+    }
+    
+    return 0;
+}
